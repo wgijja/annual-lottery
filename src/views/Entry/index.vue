@@ -8,7 +8,6 @@ import { usePersonConfig } from '@/store/personConfig'
 import { usePrizeConfig } from '@/store/prizeConfig'
 import { useGroupConfig } from '@/store/groupConfig'
 import { useToast } from 'vue-toast-notification'
-import { verifyThemePassword } from '@/api/lottery'
 import confetti from 'canvas-confetti'
 
 const { t } = useI18n()
@@ -22,19 +21,13 @@ const groupConfig = useGroupConfig()
 
 const showCreateModal = ref(false)
 const showDeleteConfirm = ref(false)
-const showPasswordModal = ref(false)
-const showEnterPasswordModal = ref(false)
 const themeToDelete = ref<ITheme | null>(null)
-const themeToEnter = ref<ITheme | null>(null)
-const deletePassword = ref('')
-const enterPassword = ref('')
 const isAnimating = ref(false)
 
 // 表单数据
 const formData = ref({
   name: '',
   description: '',
-  password: '',
 })
 
 // 获取所有主题
@@ -42,12 +35,12 @@ const themes = computed(() => themeStore.getAllThemes)
 
 // 表单验证
 const isFormValid = computed(() => 
-  formData.value.name.trim() !== '' && formData.value.password.trim() !== ''
+  formData.value.name.trim() !== ''
 )
 
 // 打开创建弹窗
 const openCreateModal = () => {
-  formData.value = { name: '', description: '', password: '' }
+  formData.value = { name: '', description: '' }
   showCreateModal.value = true
 }
 
@@ -66,20 +59,10 @@ const handleCreate = async () => {
     })
     return
   }
-  
-  if (!formData.value.password.trim()) {
-    toast.open({
-      message: t('entry.pleaseEnterPassword'),
-      type: 'warning',
-      position: 'top-right',
-    })
-    return
-  }
 
   const newTheme = await themeStore.createTheme(
     formData.value.name.trim(),
-    formData.value.description.trim(),
-    formData.value.password.trim()
+    formData.value.description.trim()
   )
 
   toast.open({
@@ -92,29 +75,9 @@ const handleCreate = async () => {
   doEnterTheme(newTheme, true) // 标记为新主题
 }
 
-// 点击进入主题（需要验证密码）
+// 点击进入主题
 const enterTheme = async (theme: ITheme) => {
-  themeToEnter.value = theme
-  enterPassword.value = ''
-  showEnterPasswordModal.value = true
-}
-
-// 验证密码并进入主题
-const handleEnterWithPassword = async () => {
-  if (!themeToEnter.value) return
-  
-  const isValid = await verifyThemePassword(themeToEnter.value.id, enterPassword.value)
-  if (!isValid) {
-    toast.open({
-      message: t('entry.wrongPassword'),
-      type: 'error',
-      position: 'top-right',
-    })
-    return
-  }
-  
-  showEnterPasswordModal.value = false
-  doEnterTheme(themeToEnter.value, false)
+  doEnterTheme(theme, false)
 }
 
 // 实际进入主题
@@ -165,22 +128,15 @@ const confirmDelete = (theme: ITheme, event: Event) => {
   showDeleteConfirm.value = true
 }
 
-// 确认删除（打开密码输入框）
-const handleDelete = () => {
-  showDeleteConfirm.value = false
-  deletePassword.value = ''
-  showPasswordModal.value = true
-}
-
-// 验证密码并删除
-const handleDeleteWithPassword = async () => {
+// 确认删除
+const handleDelete = async () => {
   if (!themeToDelete.value) return
   
-  const result = await themeStore.deleteTheme(themeToDelete.value.id, deletePassword.value)
+  const result = await themeStore.deleteTheme(themeToDelete.value.id)
   
   if (!result.success) {
     toast.open({
-      message: t('entry.wrongPassword'),
+      message: result.error || t('entry.deleteFailed'),
       type: 'error',
       position: 'top-right',
     })
@@ -193,7 +149,7 @@ const handleDeleteWithPassword = async () => {
     position: 'top-right',
   })
   
-  showPasswordModal.value = false
+  showDeleteConfirm.value = false
   themeToDelete.value = null
 }
 
@@ -305,17 +261,6 @@ onMounted(() => {
                   rows="3"
                 ></textarea>
               </div>
-              <div class="form-group">
-                <label>{{ t('entry.themePassword') }} <span class="required">*</span></label>
-                <input
-                  v-model="formData.password"
-                  type="password"
-                  :placeholder="t('entry.themePasswordPlaceholder')"
-                  class="form-input"
-                  maxlength="20"
-                />
-                <p class="form-hint">{{ t('entry.passwordHint') }}</p>
-              </div>
             </div>
             <div class="modal-footer">
               <button class="cancel-btn" @click="closeCreateModal">
@@ -361,73 +306,6 @@ onMounted(() => {
       </Transition>
     </Teleport>
 
-    <!-- 删除密码验证弹窗 -->
-    <Teleport to="body">
-      <Transition name="modal">
-        <div v-if="showPasswordModal" class="modal-overlay" @click.self="showPasswordModal = false">
-          <div class="modal-container confirm-modal">
-            <div class="modal-header">
-              <h3>🔐 {{ t('entry.enterPassword') }}</h3>
-              <button class="close-btn" @click="showPasswordModal = false">&times;</button>
-            </div>
-            <div class="modal-body">
-              <p class="confirm-text">{{ t('entry.deletePasswordHint') }}</p>
-              <div class="form-group">
-                <input
-                  v-model="deletePassword"
-                  type="password"
-                  :placeholder="t('entry.passwordPlaceholder')"
-                  class="form-input"
-                  @keyup.enter="handleDeleteWithPassword"
-                />
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button class="cancel-btn" @click="showPasswordModal = false">
-                {{ t('button.cancel') }}
-              </button>
-              <button class="delete-confirm-btn" @click="handleDeleteWithPassword">
-                {{ t('button.confirm') }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <!-- 进入主题密码验证弹窗 -->
-    <Teleport to="body">
-      <Transition name="modal">
-        <div v-if="showEnterPasswordModal" class="modal-overlay" @click.self="showEnterPasswordModal = false">
-          <div class="modal-container confirm-modal">
-            <div class="modal-header">
-              <h3>🔐 {{ t('entry.enterPassword') }}</h3>
-              <button class="close-btn" @click="showEnterPasswordModal = false">&times;</button>
-            </div>
-            <div class="modal-body">
-              <p class="confirm-text">{{ t('entry.enterPasswordHint', { name: themeToEnter?.name }) }}</p>
-              <div class="form-group">
-                <input
-                  v-model="enterPassword"
-                  type="password"
-                  :placeholder="t('entry.passwordPlaceholder')"
-                  class="form-input"
-                  @keyup.enter="handleEnterWithPassword"
-                />
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button class="cancel-btn" @click="showEnterPasswordModal = false">
-                {{ t('button.cancel') }}
-              </button>
-              <button class="submit-btn" @click="handleEnterWithPassword">
-                {{ t('entry.enter') }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
   </div>
 </template>
 

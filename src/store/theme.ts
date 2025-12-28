@@ -71,8 +71,8 @@ export const useThemeStore = defineStore('theme', {
       }
     },
     
-    // 创建新主题（带密码）
-    async createTheme(name: string, description: string = '', password: string = '') {
+    // 创建新主题
+    async createTheme(name: string, description: string = '') {
       const id = `theme_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       const now = new Date().toISOString()
       const newTheme: ITheme = {
@@ -86,7 +86,7 @@ export const useThemeStore = defineStore('theme', {
       // 保存到服务器
       if (useServerStorage) {
         try {
-          await api.createTheme({ id, name, description, password })
+          await api.createTheme({ id, name, description })
         } catch (error) {
           console.error('[Theme] Failed to create theme on server:', error)
         }
@@ -113,13 +113,13 @@ export const useThemeStore = defineStore('theme', {
       }
       return false
     },
-    // 删除主题（需要密码）
-    async deleteTheme(themeId: string, password?: string): Promise<{ success: boolean, error?: string }> {
+    // 删除主题
+    async deleteTheme(themeId: string): Promise<{ success: boolean, error?: string }> {
       const index = this.themes.findIndex(t => t.id === themeId)
       if (index > -1) {
-        // 从服务器删除（需要密码验证）
+        // 从服务器删除
         if (useServerStorage) {
-          const result = await api.deleteTheme(themeId, password)
+          const result = await api.deleteTheme(themeId)
           if (!result.success) {
             return result
           }

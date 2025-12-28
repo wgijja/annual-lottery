@@ -33,26 +33,9 @@ export async function fetchTheme(id: string): Promise<IThemeData | null> {
 }
 
 // 创建主题（带密码）
-export async function createTheme(data: { id: string, name: string, description?: string, password?: string }): Promise<IThemeData> {
+export async function createTheme(data: { id: string, name: string, description?: string }): Promise<IThemeData> {
   const res = await api.post('/themes', data)
   return res.data.data
-}
-
-// 验证主题密码
-export async function verifyThemePassword(themeId: string, password: string): Promise<boolean> {
-  try {
-    const res = await api.post(`/themes/${themeId}/verify-password`, { password })
-    // 检查响应格式：可能是 res.data.valid 或 res.data.data.valid
-    return res.data?.valid === true || res.data?.data?.valid === true
-  }
-  catch (error: any) {
-    console.error('[verifyThemePassword] Error:', error)
-    // 如果是404，说明主题不存在
-    if (error.response?.status === 404) {
-      return false
-    }
-    return false
-  }
 }
 
 // 更新主题
@@ -61,10 +44,10 @@ export async function updateTheme(id: string, data: { name: string, description?
   return res.data.data
 }
 
-// 删除主题（需要密码）
-export async function deleteTheme(id: string, password?: string): Promise<{ success: boolean, error?: string }> {
+// 删除主题
+export async function deleteTheme(id: string): Promise<{ success: boolean, error?: string }> {
   try {
-    await api.delete(`/themes/${id}`, { data: { password } })
+    await api.delete(`/themes/${id}`)
     return { success: true }
   }
   catch (error: any) {

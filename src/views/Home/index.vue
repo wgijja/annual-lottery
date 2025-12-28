@@ -125,6 +125,7 @@ const { getAllPersonList: allPersonList, getNotPersonList: notPersonList, getNot
 const { getCurrentPrize: currentPrize, getTemporaryPrize: temporaryPrize } = storeToRefs(prizeConfig)
 const { getTopTitle: topTitle, getCardColor: cardColor, getPatterColor: patternColor, getPatternList: patternList, getTextColor: textColor, getLuckyColor: luckyColor, getCardSize: cardSize, getTextSize: textSize, getRowCount: rowCount, getBackground: homeBackground, getIsShowAvatar: isShowAvatar } = storeToRefs(globalConfig)
 const tableData = ref<any[]>([])
+const filteredPersonData = ref<IPersonConfig[]>([]) // 存储过滤后的人员数据（用于随机替换）
 const currentStatus = ref(0) // 0为初始状态， 1为抽奖准备状态，2为抽奖中状态，3为抽奖结束状态
 const ballRotationY = ref(0)
 const containerRef = ref<HTMLElement>()
@@ -165,7 +166,7 @@ function initTableData() {
   }
   
   // 根据当前奖项的配置过滤人员
-  let filteredPersonData = JSON.parse(JSON.stringify(allPersonList.value))
+  let personDataToShow = JSON.parse(JSON.stringify(allPersonList.value))
   
   // 判断是否为临时奖项（左侧增加的抽奖）
   // 临时奖项的判断：temporaryPrize存在且isShow为true，且ID匹配
@@ -178,33 +179,36 @@ function initTableData() {
     // 如果当前奖项指定了groupIds，只显示指定组的人员
     const prizeGroupIds = currentPrize.value.groupIds
     if (prizeGroupIds && prizeGroupIds.length > 0) {
-      filteredPersonData = filteredPersonData.filter((person: IPersonConfig) => {
+      personDataToShow = personDataToShow.filter((person: IPersonConfig) => {
         return person.groupId && prizeGroupIds.includes(person.groupId)
       })
     }
   }
   
   // 过滤掉eligible为false的人员（隐身模式）
-  filteredPersonData = filteredPersonData.filter((person: IPersonConfig) => {
+  personDataToShow = personDataToShow.filter((person: IPersonConfig) => {
     return person.eligible !== false
   })
   
-  if (filteredPersonData.length === 0) {
+  // 保存过滤后的人员数据，供randomBallData使用
+  filteredPersonData.value = personDataToShow
+  
+  if (personDataToShow.length === 0) {
     tableData.value = []
     return
   }
   
   const totalCount = rowCount.value * 7
-  const originPersonLength = filteredPersonData.length
+  const originPersonLength = personDataToShow.length
   if (originPersonLength < totalCount) {
     const repeatCount = Math.ceil(totalCount / originPersonLength)
     // 复制数据
     for (let i = 0; i < repeatCount; i++) {
-      tableData.value = tableData.value.concat(JSON.parse(JSON.stringify(filteredPersonData)))
+      tableData.value = tableData.value.concat(JSON.parse(JSON.stringify(personDataToShow)))
     }
   }
   else {
-    tableData.value = filteredPersonData.slice(0, totalCount)
+    tableData.value = personDataToShow.slice(0, totalCount)
   }
   tableData.value = filterData(tableData.value.slice(0, totalCount), rowCount.value)
 }
@@ -532,8 +536,8 @@ async function enterLottery() {
   await transform(targets.sphere, 600)
   // 等待转换完成后再开始旋转
   currentStatus.value = 1
-  // 使用较小的旋转值开始，确保是球型旋转
-  rollBall(0.1, 1000)
+  // 使用较小的旋转值开始，确保是球型旋转，减慢初始旋转速度
+  rollBall(0.05, 1500)
 }
 
 // 返回初始状态
@@ -658,7 +662,8 @@ function startLottery() {
     duration: 8000,
   })
   currentStatus.value = 2
-  rollBall(10, 3000)
+  // 减慢旋转速度：减少旋转圈数，增加持续时间
+  rollBall(5, 5000)
 }
 
 async function stopLottery() {
@@ -799,6 +804,11 @@ async function setDefaultPersonList() {
 }
 // 随机替换数据
 function randomBallData(mod: 'default' | 'lucky' | 'sphere' = 'default') {
+  // 如果过滤后的人员数据为空，不执行随机替换
+  if (filteredPersonData.value.length === 0) {
+    return
+  }
+  
   // 两秒执行一次
   intervalTimer.value = setInterval(() => {
     // 产生随机数数组
@@ -808,7 +818,7 @@ function randomBallData(mod: 'default' | 'lucky' | 'sphere' = 'default') {
     for (let i = 0; i < indexLength; i++) {
       // 解决随机元素概率过于不均等问题
       const randomCardIndex = Math.floor(Math.random() * (tableData.value.length - 1))
-      const randomPersonIndex = Math.floor(Math.random() * (allPersonList.value.length - 1))
+      const randomPersonIndex = Math.floor(Math.random() * (filteredPersonData.value.length - 1))
       if (luckyCardList.value.includes(randomCardIndex)) {
         continue
       }
@@ -819,7 +829,7 @@ function randomBallData(mod: 'default' | 'lucky' | 'sphere' = 'default') {
       if (!objects.value[cardRandomIndexArr[i]]) {
         continue
       }
-      objects.value[cardRandomIndexArr[i]].element = useElementStyle(objects.value[cardRandomIndexArr[i]].element, allPersonList.value[personRandomIndexArr[i]], cardRandomIndexArr[i], patternList.value, patternColor.value, cardColor.value, { width: cardSize.value.width, height: cardSize.value.height }, textSize.value, mod, 'change')
+      objects.value[cardRandomIndexArr[i]].element = useElementStyle(objects.value[cardRandomIndexArr[i]].element, filteredPersonData.value[personRandomIndexArr[i]], cardRandomIndexArr[i], patternList.value, patternColor.value, cardColor.value, { width: cardSize.value.width, height: cardSize.value.height }, textSize.value, mod, 'change')
     }
   }, 200)
 }
